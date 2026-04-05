@@ -56,7 +56,8 @@ async function initDB() {
       reminder_type VARCHAR(50)
     );
   `);
-  console.log('✅ Database initialized');
+  console.log("✅ Database initialized");
+  await initLogoTable();');
 }
 
 // ── GENERATE ORDER REF ────────────────────────────────────────
@@ -331,3 +332,16 @@ app.get('/logo/:filename', async (req, res) => {
     res.status(500).send('Error');
   }
 });
+
+// ── LOGO UPLOADS TABLE ────────────────────────────────────────
+async function initLogoTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS logo_uploads (
+      id SERIAL PRIMARY KEY,
+      filename VARCHAR(200) UNIQUE,
+      data_url TEXT,
+      uploaded_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+  console.log('✅ Logo uploads table ready');
+}
