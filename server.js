@@ -57,7 +57,7 @@ async function initDB() {
     );
   `);
   console.log("✅ Database initialized");
-  await initLogoTable();');
+  await initLogoTable();
 }
 
 // ── GENERATE ORDER REF ────────────────────────────────────────
