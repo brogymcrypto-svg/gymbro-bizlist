@@ -272,3 +272,62 @@ app.post('/admin/migrate', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── LOGO UPLOAD ───────────────────────────────────────────────
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+const storage = multer.diskStorage({
+  destination: function(req, file, cb) {
+    const dir = '/tmp/logos';
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: function(req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: function(req, file, cb) {
+    const allowed = /jpeg|jpg|png/;
+    cb(null, allowed.test(path.extname(file.originalname).toLowerCase()));
+  }
+});
+
+app.post('/upload/logo', upload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const fileName = req.file.filename;
+    const fileData = fs.readFileSync(req.file.path);
+    const base64 = fileData.toString('base64');
+    const mimeType = req.file.mimetype;
+    const dataUrl = `data:${mimeType};base64,${base64}`;
+    await pool.query(
+      'INSERT INTO logo_uploads (filename, data_url, uploaded_at) VALUES ($1,$2,NOW()) ON CONFLICT DO NOTHING',
+      [fileName, dataUrl]
+    );
+    res.json({ url: `https://listings.gymbrocrypto.com/logo/${fileName}`, filename: fileName });
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+app.get('/logo/:filename', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT data_url FROM logo_uploads WHERE filename=$1', [req.params.filename]);
+    if (!result.rows.length) return res.status(404).send('Not found');
+    const dataUrl = result.rows[0].data_url;
+    const matches = dataUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    const mimeType = matches[1];
+    const buffer = Buffer.from(matches[2], 'base64');
+    res.set('Content-Type', mimeType);
+    res.send(buffer);
+  } catch(e) {
+    res.status(500).send('Error');
+  }
+});
