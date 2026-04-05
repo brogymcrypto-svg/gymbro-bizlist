@@ -345,3 +345,15 @@ async function initLogoTable() {
   `);
   console.log('✅ Logo uploads table ready');
 }
+
+// ── ADMIN UPDATE LOGO ─────────────────────────────────────────
+app.post('/admin/update-logo', async (req, res) => {
+  if (req.headers['x-admin-key'] !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const { order_ref, logo_url } = req.body;
+    await pool.query('UPDATE listings SET logo_url=$1 WHERE order_ref=$2', [logo_url, order_ref]);
+    res.json({ ok: true });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
