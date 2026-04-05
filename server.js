@@ -142,7 +142,7 @@ app.get('/listings/active', async (req, res) => {
     const result = await pool.query(`
       SELECT * FROM listings
       WHERE status='active' AND expiry_date > NOW()
-      ORDER BY tier='premium' DESC, tier='standard' DESC, created_at DESC`);
+      ORDER BY tier='premium' DESC, tier='standard' DESC, daily_votes DESC, created_at DESC`);
     res.json(result.rows);
   } catch (e) {
     res.status(500).json({ error: 'Failed to fetch listings' });
@@ -266,7 +266,9 @@ app.post('/admin/migrate', async (req, res) => {
         ADD COLUMN IF NOT EXISTS opening_hours VARCHAR(200),
         ADD COLUMN IF NOT EXISTS experience VARCHAR(100),
         ADD COLUMN IF NOT EXISTS certifications TEXT,
-        ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500);
+        ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS votes INTEGER DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS daily_votes INTEGER DEFAULT 0;
     `);
     res.json({ ok: true, message: 'Migration complete' });
   } catch (e) {
@@ -357,3 +359,23 @@ app.post('/admin/update-logo', async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// ── VOTING ────────────────────────────────────────────────────
+app.post('/listings/vote/:ref', async (req, res) => {
+  try {
+    await pool.query(`
+      UPDATE listings SET votes = COALESCE(votes, 0) + 1, daily_votes = COALESCE(daily_votes, 0) + 1
+      WHERE order_ref = $1 AND status = 'active'`, [req.params.ref]);
+    const result = await pool.query(
+      'SELECT votes, daily_votes FROM listings WHERE order_ref = $1', [req.params.ref]);
+    res.json({ ok: true, votes: result.rows[0]?.votes || 0, daily_votes: result.rows[0]?.daily_votes || 0 });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── DAILY VOTES RESET (midnight) ─────────────────────────────
+cron.schedule('0 0 * * *', async () => {
+  await pool.query('UPDATE listings SET daily_votes = 0');
+  console.log('✅ Daily votes reset');
+}, { timezone: 'Asia/Riyadh' });
