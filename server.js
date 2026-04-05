@@ -252,3 +252,23 @@ app.listen(PORT, async () => {
   await initDB();
   console.log(`🚀 gymbro-bizlist running on port ${PORT}`);
 });
+
+// ── DB MIGRATION — add new columns ────────────────────────────
+app.post('/admin/migrate', async (req, res) => {
+  if (req.headers['x-admin-key'] !== process.env.ADMIN_KEY) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    await pool.query(`
+      ALTER TABLE listings
+        ADD COLUMN IF NOT EXISTS logo_url VARCHAR(500),
+        ADD COLUMN IF NOT EXISTS phone VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS website VARCHAR(300),
+        ADD COLUMN IF NOT EXISTS opening_hours VARCHAR(200),
+        ADD COLUMN IF NOT EXISTS experience VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS certifications TEXT,
+        ADD COLUMN IF NOT EXISTS logo_path VARCHAR(500);
+    `);
+    res.json({ ok: true, message: 'Migration complete' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
